@@ -1,0 +1,380 @@
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ANIME ATLAS｜我的动漫宇宙</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#0c1020;color:#f0f2ff;font-family:system-ui,"Microsoft YaHei",sans-serif}
+header{padding:36px 6%;background:linear-gradient(135deg,#30225c,#10162b);border-bottom:1px solid #383550}
+header h1{font-size:32px;letter-spacing:3px;margin:4px 0}
+small,.muted{color:#a5a8bf}
+main{max-width:1150px;margin:auto;padding:24px 16px}
+.panel{background:#181d31;border:1px solid #303650;border-radius:16px;padding:18px;margin-bottom:18px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:18px 0}
+.stat{background:#20263d;padding:16px;border-radius:12px}
+.stat b{display:block;font-size:26px;color:#c3afff}
+button,select,input{font:inherit;border-radius:9px;padding:10px}
+button{border:0;background:#7659d5;color:white;cursor:pointer}
+button:hover{filter:brightness(1.16)}
+button.secondary{background:#303850}
+button.heart{background:transparent;font-size:24px;padding:5px 10px;color:#8991ac}
+button.heart.on{color:#ff668c}
+input,select{background:#101529;border:1px solid #424968;color:white;max-width:100%}
+input{width:100%}
+.controls{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}
+.active{background:#aa82ff!important}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
+.card{background:#20263d;padding:17px;border-radius:12px;border:1px solid #343b57;cursor:pointer}
+.card:hover{border-color:#a78bfa}
+.card h3{font-size:16px;margin:10px 0}
+.tag{font-size:12px;color:#e1cdff;background:#44366c;border-radius:6px;padding:4px 8px;display:inline-block}
+.song{display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid #323950}
+.song .info{flex:1;min-width:0}
+.song strong{overflow-wrap:anywhere}
+.song a{color:#c4adff;text-decoration:none;font-size:13px}
+.hidden{display:none}
+h2{margin-top:0}
+label{display:block;margin:12px 0 6px;color:#bfc4de}
+footer{text-align:center;color:#777f9f;padding:25px}
+@media(max-width:520px){header{padding:25px 18px}.stats{gap:6px}.stat{padding:10px}.stat b{font-size:20px}.song{flex-wrap:wrap}}
+</style>
+</head>
+<body>
+<header>
+<small>PERSONAL ANIME COLLECTION</small>
+<h1>ANIME ATLAS</h1>
+<div class="muted">我的动漫宇宙 · 个人评级 · 音乐收藏</div>
+</header>
+<main>
+<div class="stats">
+<div class="stat"><b id="total">38</b><small>动漫档案</small></div>
+<div class="stat"><b id="songCount">0</b><small>音乐记录</small></div>
+<div class="stat"><b id="favCount">0</b><small>喜欢的歌曲</small></div>
+</div>
+
+<div class="controls">
+<button onclick="showPage('library')">动漫档案</button>
+<button onclick="showPage('favorites')">喜欢的音乐</button>
+<button onclick="showPage('add')">＋ 新增作品</button>
+</div>
+
+<section id="library">
+<div class="panel">
+<h2>我的动漫评级总表</h2>
+<input id="search" placeholder="搜索动漫名称..." oninput="renderAnime()">
+<div class="controls" id="filters"></div>
+</div>
+<div class="cards" id="animeCards"></div>
+</section>
+
+<section id="detail" class="hidden">
+<button class="secondary" onclick="showPage('library')">← 返回总榜</button>
+<div class="panel" style="margin-top:15px">
+<h2 id="detailName"></h2>
+<label>系列评级</label>
+<select id="detailRating" onchange="changeRating()"></select>
+<p class="muted">子作品可在后续版本单独设置评级。</p>
+<h2>音乐档案</h2>
+<div id="songList"></div>
+<h3>补充歌曲</h3>
+<input id="newSong" placeholder="歌曲名称">
+<label>歌手／作曲者</label>
+<input id="newArtist" placeholder="歌手或作曲者">
+<label>歌曲类型</label>
+<select id="newType">
+<option>OP</option><option>ED</option>
+<option>插入曲</option><option>角色歌</option>
+<option>OST</option><option>剧场版</option>
+<option>其他</option>
+</select>
+<label>B站视频BV号（可留空）</label>
+<input id="newBV" placeholder="例如 BVxxxxxxxxxx">
+<p><button onclick="addSong()">＋ 添加音乐</button></p>
+</div>
+</section>
+
+<section id="favorites" class="panel hidden">
+<h2>♥ 我喜欢的音乐</h2>
+<div id="favList"></div>
+</section>
+
+<section id="add" class="panel hidden">
+<h2>新增动漫</h2>
+<label>动漫名称</label>
+<input id="animeName" placeholder="输入新的动漫作品">
+<label>评级</label>
+<select id="animeGrade"></select>
+<p><button onclick="addAnime()">保存新作品</button></p>
+</section>
+
+<div class="panel">
+<h3>数据备份</h3>
+<p class="muted">目前自动保存在当前浏览器中。换设备前请先备份；云端同步将在后续步骤添加。</p>
+<button class="secondary" onclick="backup()">复制数据备份</button>
+</div>
+</main>
+<footer>ANIME ATLAS · MY PERSONAL ANIME UNIVERSE</footer>
+
+<script>
+const grades=["TOP1","TOP6","TOP20","S","A","B","C","D"];
+
+const initial=[
+["火影忍者","TOP1"],
+
+["死亡笔记","TOP6"],
+["命运石之门","TOP6"],
+["名侦探柯南","TOP6"],
+["暗杀教室","TOP6"],
+["龙珠","TOP6"],
+
+["齐木楠雄的灾难","TOP20"],
+["辉夜大小姐想让我告白","TOP20"],
+["赛马娘 第二季","TOP20"],
+["Fate/Zero","TOP20"],
+["爆漫王。","TOP20"],
+["灌篮高手","TOP20"],
+["灵能百分百","TOP20"],
+["寄生兽：生命的准则","TOP20"],
+["排球少年！！","TOP20"],
+["为美好的世界献上祝福！","TOP20"],
+["Re：从零开始的异世界生活","TOP20"],
+["精灵宝可梦","TOP20"],
+["数码宝贝","TOP20"],
+["CLANNAD","TOP20"],
+
+["NO GAME NO LIFE 游戏人生","S"],
+["Angel Beats!","S"],
+["赛博朋克：边缘行者 第一季","S"],
+["间谍过家家","S"],
+["笨蛋·测验·召唤兽","S"],
+["绝园的暴风雨","S"],
+["四月是你的谎言","S"],
+["三月的狮子","S"],
+["来自新世界","S"],
+["进击的巨人","S"],
+["未闻花名","S"],
+["Vivy -Fluorite Eye's Song-","S"],
+["ODDTAXI 奇巧计程车","S"],
+["电玩咖！","S"],
+["银魂","S"],
+["心理测量者","S"],
+["魔法少女小圆","S"],
+["未来日记","S"]
+];
+
+const starterSongs=[
+[0,"遥か彼方","ASIAN KUNG-FU GENERATION","OP"],
+[0,"GO!!!","FLOW","OP"],
+[0,"ブルーバード","いきものがかり","OP"],
+[0,"Sign","FLOW","OP"],
+[0,"シルエット","KANA-BOON","OP"],
+[1,"the WORLD","ナイトメア","OP"],
+[2,"Hacking to the Gate","いとうかなこ","OP"],
+[3,"謎","小松未歩","OP"],
+[4,"青春サツバツ論","3年E組うた担","OP"],
+[5,"CHA-LA HEAD-CHA-LA","影山ヒロノブ","OP"],
+[6,"青春は残酷じゃない","花江夏樹","OP"],
+[7,"チカっとチカ千花っ♡","小原好美","ED"],
+[8,"ユメヲカケル！","Spica","OP"],
+[9,"oath sign","LiSA","OP"],
+[10,"Blue Bird","コブクロ","OP"],
+[11,"世界が終るまでは…","WANDS","ED"],
+[12,"99","MOB CHOIR","OP"],
+[13,"Let Me Hear","Fear, and Loathing in Las Vegas","OP"],
+[14,"FLY HIGH!!","BURNOUT SYNDROMES","OP"],
+[15,"fantastic dreamer","Machico","OP"],
+[16,"Redo","鈴木このみ","OP"],
+[17,"めざせポケモンマスター","松本梨香","OP"],
+[18,"Butter-Fly","和田光司","OP"],
+[19,"時を刻む唄","Lia","OP"],
+[20,"This game","鈴木このみ","OP"],
+[21,"My Soul, Your Beats!","Lia","OP"],
+[22,"This Fffire","Franz Ferdinand","OP"],
+[23,"ミックスナッツ","Official髭男dism","OP"],
+[24,"Perfect-area complete!","麻生夏子","OP"],
+[25,"Spirit Inspiration","Nothing's Carved In Stone","OP"],
+[26,"光るなら","Goose house","OP"],
+[27,"アンサー","BUMP OF CHICKEN","OP"],
+[28,"割れたリンゴ","種田梨沙","ED"],
+[29,"紅蓮の弓矢","Linked Horizon","OP"],
+[30,"secret base ～君がくれたもの～","本間芽衣子ほか","ED"],
+[31,"Sing My Pleasure","Vivy","OP"],
+[32,"ODDTAXI","スカートとPUNPEE","OP"],
+[33,"GAMERS!","角色声优组合","OP"],
+[34,"曇天","DOES","OP"],
+[35,"abnormalize","凛として時雨","OP"],
+[36,"コネクト","ClariS","OP"],
+[37,"空想メソロギヰ","妖精帝國","OP"]
+];
+
+const seed=initial.map((x,i)=>({
+id:"anime"+i,name:x[0],rating:x[1],
+songs:starterSongs.filter(s=>s[0]===i).map((s,j)=>({
+id:"song"+i+"-"+j,title:s[1],artist:s[2],
+type:s[3],bv:"",liked:false
+}))
+}));
+
+let anime;
+try{
+anime=JSON.parse(localStorage.getItem("animeAtlasData"))||seed;
+if(!Array.isArray(anime))anime=seed;
+}catch(e){anime=seed}
+
+let selected=0,filter="全部";
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({
+"&":"&amp;","<":"&lt;",">":"&gt;",
+'"':"&quot;","'":"&#39;"
+}[c]));
+
+function save(){
+localStorage.setItem("animeAtlasData",JSON.stringify(anime));
+stats();
+}
+
+function stats(){
+$("total").textContent=anime.length;
+$("songCount").textContent=anime.reduce((n,a)=>n+a.songs.length,0);
+$("favCount").textContent=anime.reduce((n,a)=>n+a.songs.filter(s=>s.liked).length,0);
+}
+
+function showPage(id){
+["library","detail","favorites","add"].forEach(x=>
+$(x).classList.toggle("hidden",x!==id));
+if(id==="library")renderAnime();
+if(id==="favorites")renderFavorites();
+window.scrollTo(0,0);
+}
+
+function renderAnime(){
+$("filters").innerHTML=["全部",...grades].map(g=>
+`<button class="${filter===g?"active":"secondary"}" data-grade="${g}">${g}</button>`).join("");
+$("filters").querySelectorAll("button").forEach(b=>
+b.onclick=()=>{filter=b.dataset.grade;renderAnime()});
+
+let q=$("search").value.toLowerCase();
+$("animeCards").innerHTML=anime.map((a,i)=>({a,i}))
+.filter(({a})=>(filter==="全部"||a.rating===filter)&&a.name.toLowerCase().includes(q))
+.map(({a,i})=>`<div class="card" data-index="${i}">
+<span class="tag">${esc(a.rating)}</span>
+<h3>${esc(a.name)}</h3>
+<small>${a.songs.length} 条音乐记录 →</small>
+</div>`).join("")||"<p>暂无匹配作品</p>";
+
+$("animeCards").querySelectorAll(".card").forEach(c=>
+c.onclick=()=>openAnime(Number(c.dataset.index)));
+stats();
+}
+
+function openAnime(i){
+selected=i;
+$("detailName").textContent=anime[i].name;
+$("detailRating").value=anime[i].rating;
+showPage("detail");renderSongs();
+}
+
+function changeRating(){
+let next=$("detailRating").value;
+let count=anime.filter((a,i)=>i!==selected&&a.rating===next).length;
+let limit={TOP1:1,TOP6:5,TOP20:14}[next];
+if(limit&&count>=limit){
+alert(next+" 的名额已经满了，请先调整其他作品。");
+$("detailRating").value=anime[selected].rating;
+return;
+}
+anime[selected].rating=next;save();
+}
+
+function bUrl(a,s){
+if(/^BV[0-9A-Za-z]{10}$/.test(s.bv||""))
+return "https://www.bilibili.com/video/"+s.bv;
+return "https://search.bilibili.com/all?keyword="+
+encodeURIComponent(a.name+" "+s.title+" "+s.artist);
+}
+
+function songHTML(a,s){
+return `<div class="song">
+<div class="info">
+<strong>${esc(s.title)}</strong><br>
+<small>${esc(s.artist)} · ${esc(s.type)}</small><br>
+<a href="${bUrl(a,s)}" target="_blank" rel="noopener noreferrer">▶ B站播放／搜索 ↗</a>
+</div>
+<button class="heart ${s.liked?"on":""}" data-id="${esc(s.id)}">${s.liked?"♥":"♡"}</button>
+</div>`;
+}
+
+function renderSongs(){
+let a=anime[selected];
+$("songList").innerHTML=a.songs.length?
+a.songs.map(s=>songHTML(a,s)).join(""):
+"<p class='muted'>暂无歌曲，可以在下方添加。</p>";
+bindHearts($("songList"),renderSongs);
+}
+
+function bindHearts(parent,callback){
+parent.querySelectorAll(".heart").forEach(btn=>{
+btn.onclick=()=>{
+anime.forEach(a=>a.songs.forEach(s=>{
+if(s.id===btn.dataset.id)s.liked=!s.liked;
+}));
+save();callback();
+};
+});
+}
+
+function renderFavorites(){
+let rows=anime.flatMap(a=>a.songs.filter(s=>s.liked).map(s=>({a,s})));
+$("favList").innerHTML=rows.length?
+rows.map(({a,s})=>songHTML(a,s)).join(""):
+"<p class='muted'>暂无收藏，打开动漫详情点击 ♡ 即可收藏。</p>";
+bindHearts($("favList"),renderFavorites);
+}
+
+function addSong(){
+let title=$("newSong").value.trim();
+if(!title)return alert("请填写歌曲名称");
+let bv=$("newBV").value.trim();
+if(bv&&!/^BV[0-9A-Za-z]{10}$/.test(bv))
+return alert("BV号格式有误，也可以先留空");
+anime[selected].songs.push({
+id:"song"+Date.now()+Math.random(),
+title,artist:$("newArtist").value.trim()||"待补充",
+type:$("newType").value,bv,liked:false
+});
+$("newSong").value="";
+$("newArtist").value="";
+$("newBV").value="";
+save();renderSongs();
+}
+
+function addAnime(){
+let name=$("animeName").value.trim();
+if(!name)return alert("请输入动漫名称");
+if(anime.some(a=>a.name===name))return alert("这部动漫已收录");
+let rating=$("animeGrade").value;
+let limit={TOP1:1,TOP6:5,TOP20:14}[rating];
+if(limit&&anime.filter(a=>a.rating===rating).length>=limit)
+return alert("这个评级的名额已满");
+anime.push({id:"anime"+Date.now(),name,rating,songs:[]});
+$("animeName").value="";
+save();openAnime(anime.length-1);
+}
+
+function backup(){
+let data=JSON.stringify({version:1,anime},null,2);
+if(navigator.clipboard&&window.isSecureContext)
+navigator.clipboard.writeText(data).then(()=>alert("备份已复制")).catch(()=>prompt("请复制备份内容",data));
+else prompt("请复制备份内容",data);
+}
+
+$("detailRating").innerHTML=grades.map(g=>`<option>${g}</option>`).join("");
+$("animeGrade").innerHTML=grades.map(g=>`<option>${g}</option>`).join("");
+$("animeGrade").value="A";
+renderAnime();
+</script>
+</body>
+</html>
