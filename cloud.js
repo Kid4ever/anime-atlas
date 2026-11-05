@@ -322,12 +322,145 @@ ce("cloudSignOut").onclick = cloudLogout;
 ce("cloudUpload").onclick = cloudUpload;
 ce("cloudDownload").onclick = cloudDownload;
 
+
+/*
+ * ANIME ATLAS
+ * 登录后自动读取云端档案
+ */
+
+// 防止同一个账户反复触发下载
+let autoLoadedUser = null;
+let autoLoadingUser = null;
+let cloudSessionVersion = 0;
+
+// 自动读取云端档案
+async function cloudAutoLoad(user) {
+  if (!user) return;
+
+  const uid = user.id;
+
+  if (autoLoadedUser === uid ||
+      autoLoadingUser === uid) {
+    return;
+  }
+
+  autoLoadingUser = uid;
+  cloudSyncEnabled = false;
+
+  cloudStatus("正在自动读取云端档案...");
+
+  try {
+    const { data, error } = await cloudClient
+      .from("anime_archives")
+      .select("data,updated_at")
+      .eq("user_id", uid)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    // 防止退出登录后，旧请求继续修改页面
+    if (!cloudUser || cloudUser.id !== uid) {
+      return;
+    }
+
+    if (!data) {
+      cloudStatus(
+        "云端暂无档案，请使用「上传本地档案」"
+      );
+      return;
+    }
+
+    if (!Array.isArray(data.data?.anime)) {
+      throw new Error("云端动漫数据格式不正确");
+    }
+
+    // 覆盖浏览器数据前，先留一份本地备份
+    const backupKey =
+      "animeAtlasBeforeCloud_" + uid;
+
+    if (!localStorage.getItem(backupKey)) {
+      localStorage.setItem(
+        backupKey,
+        JSON.stringify(anime)
+      );
+    }
+
+    // 先读取云端数据
+    anime = data.data.anime;
+
+    // 再更新浏览器缓存
+    localStorage.setItem(
+      "animeAtlasData",
+      JSON.stringify(anime)
+    );
+
+    selected = 0;
+    showPage("library");
+    renderAnime();
+    stats();
+
+    autoLoadedUser = uid;
+    cloudEnableSync();
+
+    cloudStatus(
+      "✓ 已自动读取云端档案，共 " +
+      anime.length +
+      " 部动漫"
+    );
+
+  } catch (err) {
+    cloudStatus(
+      "自动读取失败：" + err.message
+    );
+  } finally {
+    if (autoLoadingUser === uid) {
+      autoLoadingUser = null;
+    }
+  }
+}
+
+// 收到登录状态变化时自动读取
 cloudClient.auth.onAuthStateChange(
-  (_event, session) => {
-    cloudDisplay(session?.user || null);
+  (event, session) => {
+    const user = session?.user || null;
+    const previousId = cloudUser?.id || null;
+
+    if (event === "SIGNED_OUT" || !user) {
+      cloudSessionVersion++;
+      autoLoadedUser = null;
+      cloudSyncEnabled = false;
+      clearTimeout(cloudSaveTimer);
+      cloudDisplay(null);
+      return;
+    }
+
+    cloudDisplay(user);
+
+    if (previousId !== user.id) {
+      cloudSessionVersion++;
+      autoLoadedUser = null;
+    }
+
+    // 不在回调中直接执行数据库请求
+    if (
+      event === "INITIAL_SESSION" ||
+      event === "SIGNED_IN"
+    ) {
+      const version = cloudSessionVersion;
+
+      setTimeout(() => {
+        if (
+          version === cloudSessionVersion &&
+          cloudUser?.id === user.id
+        ) {
+          cloudAutoLoad(user);
+        }
+      }, 0);
+    }
   }
 );
 
+// 首次打开时恢复已有登录状态
 cloudClient.auth.getUser().then(
   ({ data, error }) => {
     if (error) {
@@ -337,6 +470,14 @@ cloudClient.auth.getUser().then(
       return;
     }
 
-    cloudDisplay(data.user);
+    const user = data.user;
+
+    if (user) {
+      cloudDisplay(user);
+      cloudAutoLoad(user);
+    } else {
+      cloudDisplay(null);
+    }
   }
 );
+
