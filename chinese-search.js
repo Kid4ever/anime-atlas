@@ -56,38 +56,42 @@
 
   let busy = false;
 
-  async function searchBangumi(keyword) {
-    const response = await fetch(
-      "https://api.bgm.tv/v0/search/subjects?limit=10",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Accept": "application/json"
-        },
-        body: JSON.stringify({
-          keyword,
-          sort: "match",
-          filter: {
-            type: [2],
-            nsfw: false
-          }
-        })
-      }
-    );
 
-    if (!response.ok) {
-      throw new Error(
-        "Bangumi 返回 HTTP " + response.status
-      );
+async function searchBangumi(keyword) {
+  const endpoint =
+    CLOUD_URL.replace(/\/+$/, "") +
+    "/functions/v1/bangumi-search?q=" +
+    encodeURIComponent(keyword);
+
+  const response = await fetch(endpoint, {
+    method: "GET",
+    headers: {
+      "Accept": "application/json"
     }
+  });
 
-    const json = await response.json();
+  let result;
 
-    return Array.isArray(json.data)
-      ? json.data
-      : [];
+  try {
+    result = await response.json();
+  } catch (_) {
+    throw new Error(
+      "搜索服务没有返回有效的JSON数据"
+    );
   }
+
+  if (!response.ok) {
+    throw new Error(
+      result.error ||
+      "搜索服务返回 HTTP " + response.status
+    );
+  }
+
+  return Array.isArray(result.data)
+    ? result.data
+    : [];
+}
+
 
   function makeResult(item) {
     const card = document.createElement("div");
