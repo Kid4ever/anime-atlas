@@ -4,7 +4,7 @@
  * 仅填写 Project URL 和 Publishable Key
  */
 
-const CLOUD_URL = "https://refyyjtwbmsnksccnmea.supabase.co/rest/v1/";
+const CLOUD_URL = "https://refyyjtwbmsnksccnmea.supabase.co";
 const CLOUD_KEY = "sb_publishable_nE6j2J5Kdnz_n7dlgWqauQ_BrBN7dr5";
 
 const cloudClient = window.supabase.createClient(
