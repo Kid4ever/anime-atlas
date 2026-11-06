@@ -304,9 +304,11 @@
       if (!card) continue;
 
       // 相同卡片只加一张图
-      if (card.querySelector(
-        ".atlas-display-cover"
-      )) continue;
+if (el.dataset.atlasCoverApplied === "1") {
+  continue;
+}
+
+el.dataset.atlasCoverApplied = "1";
 
       if (
         !record.obj.media?.coverPath &&
