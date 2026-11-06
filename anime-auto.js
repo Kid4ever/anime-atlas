@@ -271,6 +271,94 @@ function renderWorks() {
     "未查询到音乐的版本仍可建立子作品目录。";
   el.append(note);
 
+  // 批量选择工具栏
+  const selectBar = document.createElement("div");
+  selectBar.className = "controls";
+  selectBar.style.display = "flex";
+  selectBar.style.flexWrap = "wrap";
+  selectBar.style.alignItems = "center";
+  selectBar.style.gap = "8px";
+  selectBar.style.margin = "12px 0";
+
+  const allButton = document.createElement("button");
+  allButton.type = "button";
+  allButton.className = "secondary";
+  allButton.textContent = "☑ 一键全选";
+
+  allButton.onclick = () => {
+    works.forEach(w => {
+      w.checked = true;
+    });
+    renderWorks();
+    renderPreview();
+  };
+
+  const noneButton = document.createElement("button");
+  noneButton.type = "button";
+  noneButton.className = "secondary";
+  noneButton.textContent = "□ 取消全选";
+
+  noneButton.onclick = () => {
+    works.forEach(w => {
+      w.checked = false;
+    });
+    renderWorks();
+    renderPreview();
+  };
+
+  const count = document.createElement("span");
+  count.className = "muted";
+  count.textContent =
+    `已选 ${works.filter(w => w.checked).length}` +
+    ` / ${works.length} 部`;
+
+  selectBar.append(allButton, noneButton, count);
+  el.appendChild(selectBar);
+
+  // 批量选择工具栏
+  const selectBar = document.createElement("div");
+  selectBar.className = "controls";
+  selectBar.style.display = "flex";
+  selectBar.style.flexWrap = "wrap";
+  selectBar.style.alignItems = "center";
+  selectBar.style.gap = "8px";
+  selectBar.style.margin = "12px 0";
+
+  const allButton = document.createElement("button");
+  allButton.type = "button";
+  allButton.className = "secondary";
+  allButton.textContent = "☑ 一键全选";
+
+  allButton.onclick = () => {
+    works.forEach(w => {
+      w.checked = true;
+    });
+    renderWorks();
+    renderPreview();
+  };
+
+  const noneButton = document.createElement("button");
+  noneButton.type = "button";
+  noneButton.className = "secondary";
+  noneButton.textContent = "□ 取消全选";
+
+  noneButton.onclick = () => {
+    works.forEach(w => {
+      w.checked = false;
+    });
+    renderWorks();
+    renderPreview();
+  };
+
+  const count = document.createElement("span");
+  count.className = "muted";
+  count.textContent =
+    `已选 ${works.filter(w => w.checked).length}` +
+    ` / ${works.length} 部`;
+
+  selectBar.append(allButton, noneButton, count);
+  el.appendChild(selectBar);
+
   works.forEach(w => {
     const row = document.createElement("label");
     row.style.display = "block";
