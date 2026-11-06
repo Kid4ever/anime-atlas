@@ -176,25 +176,38 @@
     );
   }
 
-  async function loadDetail(id) {
-    if (!/^[1-9]\d*$/.test(String(id))) {
-      throw new Error("无效的Bangumi数字ID");
-    }
-
-    const detail = await getJSON(
-      "https://api.bgm.tv/v0/subjects/" +
-      encodeURIComponent(String(id))
-    );
-
-    if (detail.type !== 2) {
-      throw new Error(
-        "Bangumi ID " + id +
-        " 对应的不是动画条目"
-      );
-    }
-
-    return detail;
+  
+async function loadDetail(id) {
+  if (!/^[1-9]\d*$/.test(String(id))) {
+    throw new Error("无效的Bangumi数字ID");
   }
+
+  const endpoint =
+    CLOUD_URL.replace(/\/+$/, "") +
+    "/functions/v1/bangumi-detail?id=" +
+    encodeURIComponent(String(id));
+
+  let detail;
+
+  try {
+    // 浏览器等待时间略长于服务端9秒超时
+    detail = await getJSON(endpoint, 13000);
+  } catch (e) {
+    throw new Error(
+      "作品详情获取失败：" + e.message
+    );
+  }
+
+  if (detail.type !== 2) {
+    throw new Error(
+      "Bangumi ID " + id +
+      " 对应的不是动画，而是其他类型条目"
+    );
+  }
+
+  return detail;
+}
+
 
   function testImage(url) {
     return new Promise((resolve, reject) => {
@@ -231,21 +244,47 @@
     });
   }
 
-  async function verify(id) {
-    const detail = await loadDetail(id);
-    const url = imageSource(detail);
+  
+async function verify(id) {
+  msg("第一步：正在读取作品详情，ID " + id);
 
-    if (!url) {
-      throw new Error(
-        "Bangumi条目 " + id +
-        " 没有可用的真实封面地址"
-      );
-    }
+  const detail = await loadDetail(id);
 
-    await testImage(url);
+  msg(
+    "第二步：已获取《" +
+    (detail.name_cn || detail.name) +
+    "》，正在检查封面地址..."
+  );
 
-    return {detail, url};
+  const url = imageSource(detail);
+
+  if (!url) {
+    throw new Error(
+      "作品详情读取成功，但没有可用的封面地址。" +
+      "Bangumi ID：" + id
+    );
   }
+
+  msg(
+    "第三步：正在加载图片CDN..." +
+    "\n作品：" +
+    (detail.name_cn || detail.name)
+  );
+
+  try {
+    await testImage(url);
+  } catch (e) {
+    throw new Error(
+      "作品详情正常，但图片CDN加载失败：" +
+      e.message +
+      "。可以检查图片域名是否可访问，" +
+      "或改用私人封面上传。"
+    );
+  }
+
+  return {detail, url};
+}
+
 
   async function saveSelection(obj, result) {
     if (
