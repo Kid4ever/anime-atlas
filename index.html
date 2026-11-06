@@ -5,6 +5,15 @@
   #importSongs {
     display: none !important;
   }
+  
+/* 隐藏已经停用的旧版智能导入 */
+#smartImportPanel {
+  display: none !important;
+}
+
+/* 旧版 Bangumi 备用建档位于该面板内，
+   因此也会一起隐藏 */
+
 </style>
 <head>
 <meta charset="UTF-8">
@@ -387,7 +396,7 @@ renderAnime();
 <script src="./smart-import.js?v=1"></script>
 <script src="./unified-search.js?v=2"></script>
 <script src="./bangumi-fallback.js?v=1"></script>
-<script src="./animethemes-import.js?v=1"></script>
+<script src="./animethemes-import.js?v=2"></script>
 <script src="./anime-auto.js?v=5"></script>
 <script src="./manage-tools.js?v=2"></script>
 <script src="./compact-ui.js?v=3"></script>
