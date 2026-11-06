@@ -94,10 +94,25 @@
       "aria-expanded", "false"
     );
 
-    if (!panel) {
-      button.disabled = true;
-      button.title = "对应功能暂未加载";
-    }
+
+if (!panel) {
+  button.disabled = false;
+  button.textContent = label + " ⚠";
+
+  button.onclick = () => {
+    alert(
+      "智能建档面板尚未成功加载。\n\n" +
+      "请检查 anime-auto.js 是否存在代码错误，" +
+      "以及它是否在 compact-ui.js 前加载。\n\n" +
+      "其他云端档案和回收站不会受到影响。"
+    );
+  };
+
+  row.appendChild(button);
+  buttons.push(button);
+  return;
+}
+
 
     button.onclick = () => {
       if (!panel) return;
