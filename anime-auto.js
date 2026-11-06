@@ -132,22 +132,46 @@ function url(fn, params) {
     new URLSearchParams(params);
 }
 
+
 async function api(fn, params) {
-  const r = await fetch(url(fn, params), {
-    headers: {Accept: "application/json"}
-  });
+  const controller = new AbortController();
 
-  const j = await r.json();
+  // 单次请求最多等待8秒
+  const timer = setTimeout(
+    () => controller.abort(), 8000
+  );
 
-  if (!r.ok) {
-    throw Error(
-      (j.error || "HTTP " + r.status) +
-      (j.detail ? "：" + j.detail : "")
-    );
+  try {
+    const response = await fetch(url(fn, params), {
+      headers: {
+        Accept: "application/json"
+      },
+      signal: controller.signal
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(
+        (data.error || "HTTP " + response.status) +
+        (data.detail ? "：" + data.detail : "")
+      );
+    }
+
+    return data;
+  } catch (error) {
+    if (error.name === "AbortError") {
+      throw new Error(
+        "查询超过8秒，已跳过本次请求"
+      );
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timer);
   }
-
-  return j;
 }
+
 
 function resetCandidates() {
   works = [];
@@ -521,14 +545,19 @@ $("v2relations").onclick = async () => {
       " 个关联候选，正在读取主题曲..."
     );
 
-    // 本轮查询前8个动画，其余可后续再补
+    // 本轮查询前3个动画，其余可后续再补
     for (const w of works) {
-      if (works.indexOf(w) >= 8) {
+      if (works.indexOf(w) >= 3) {
         w.error = "本次未查询";
         continue;
       }
 
       try {
+       status(
+  "正在读取主题曲：" +
+  (works.indexOf(w) + 1) +
+  "/3 · " + w.name
+);
         const data = await findTheme({
           name: w.original,
           name_cn: w.name,
