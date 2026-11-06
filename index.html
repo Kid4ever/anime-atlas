@@ -321,13 +321,315 @@ return `<div class="song">
 </div>`;
 }
 
-function renderSongs(){
-let a=anime[selected];
-$("songList").innerHTML=a.songs.length?
-a.songs.map(s=>songHTML(a,s)).join(""):
-"<p class='muted'>暂无歌曲，可以在下方添加。</p>";
-bindHearts($("songList"),renderSongs);
+
+function renderSongs() {
+  const a = anime[selected];
+  const list = $("songList");
+
+  list.replaceChildren();
+
+  if (!a || !a.songs?.length) {
+    list.innerHTML =
+      "<p class='muted'>暂无歌曲，可以在下方添加。</p>";
+    return;
+  }
+
+  function message(text) {
+    const p = document.createElement("p");
+    p.className = "muted";
+    p.textContent = text;
+    return p;
+  }
+
+  function addButton(parent, title, handler) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "secondary";
+    b.textContent = title;
+
+    b.addEventListener("click", async event => {
+      event.stopPropagation();
+      b.disabled = true;
+
+      try {
+        await handler();
+      } catch (error) {
+        alert(error.message);
+      } finally {
+        if (b.isConnected) b.disabled = false;
+      }
+    });
+
+    parent.appendChild(b);
+    return b;
+  }
+
+  function requireCloud() {
+    if (
+      typeof cloudUser === "undefined" ||
+      !cloudUser ||
+      typeof cloudSyncEnabled === "undefined" ||
+      !cloudSyncEnabled ||
+      typeof cloudClient === "undefined" ||
+      typeof queueCloudWrite !== "function"
+    ) {
+      throw Error("请先登录并读取云端档案");
+    }
+  }
+
+  async function saveSongChange() {
+    save();
+
+    if (typeof cloudSaveTimer !== "undefined") {
+      clearTimeout(cloudSaveTimer);
+    }
+
+    await queueCloudWrite();
+  }
+
+  a.songs.forEach(s => {
+    const wrapper = document.createElement("div");
+    wrapper.className = "atlas-song-wrapper";
+    wrapper.style.marginBottom = "12px";
+
+    // 完整保留原来的歌曲信息和爱心控件
+    const original = document.createElement("div");
+    original.innerHTML = songHTML(a, s);
+    wrapper.appendChild(original);
+
+    const controls = document.createElement("div");
+    controls.className = "controls";
+    controls.style.display = "flex";
+    controls.style.flexWrap = "wrap";
+    controls.style.gap = "6px";
+    controls.style.padding = "6px 0";
+
+    const playerArea = document.createElement("div");
+    const state = message("");
+
+    const fileInput = document.createElement("input");
+    fileInput.type = "file";
+    fileInput.accept =
+      ".mp3,.m4a,.ogg,.wav,.webm,audio/*";
+    fileInput.style.display = "none";
+
+    // 播放当前歌曲已关联的私人音频
+    if (s.media?.audioPath) {
+      addButton(controls, "▶ 播放", async () => {
+        requireCloud();
+
+        const path = s.media.audioPath;
+
+        const {data, error} = await cloudClient.storage
+          .from("anime-media")
+          .createSignedUrl(path, 3600);
+
+        if (error) throw error;
+
+        if (!data?.signedUrl) {
+          throw Error("无法取得音频播放地址");
+        }
+
+        // 同时只播放一首歌曲
+        list.querySelectorAll("audio").forEach(audio => {
+          audio.pause();
+        });
+
+        playerArea.replaceChildren();
+
+        const audio = document.createElement("audio");
+        audio.controls = true;
+        audio.preload = "metadata";
+        audio.style.width = "100%";
+        audio.src = data.signedUrl;
+
+        playerArea.appendChild(audio);
+
+        state.textContent = "正在播放：" + s.title;
+
+        try {
+          await audio.play();
+        } catch (_) {
+          state.textContent =
+            "播放器已就绪，请点击播放键";
+        }
+      });
+    }
+
+    // 给当前歌曲上传或更换音频
+    addButton(
+      controls,
+      s.media?.audioPath ? "↑ 更换音频" : "↑ 上传音频",
+      () => {
+        requireCloud();
+        fileInput.click();
+      }
+    );
+
+    fileInput.addEventListener("change", async event => {
+      event.stopPropagation();
+
+      const file = fileInput.files?.[0];
+      if (!file) return;
+
+      const allowed = [
+        "audio/mpeg",
+        "audio/mp4",
+        "audio/ogg",
+        "audio/wav",
+        "audio/webm",
+        "audio/x-wav"
+      ];
+
+      if (!allowed.includes(file.type)) {
+        alert("不支持该音频格式");
+        fileInput.value = "";
+        return;
+      }
+
+      if (file.size > 50 * 1024 * 1024) {
+        alert("文件超过50MB，请选择较小的音频");
+        fileInput.value = "";
+        return;
+      }
+
+      if (!confirm(
+        "将音频《" + file.name +
+        "》关联到歌曲《" + s.title + "》？"
+      )) {
+        fileInput.value = "";
+        return;
+      }
+
+      try {
+        requireCloud();
+
+        state.textContent = "正在上传音频...";
+
+        const extension = {
+          "audio/mpeg": "mp3",
+          "audio/mp4": "m4a",
+          "audio/ogg": "ogg",
+          "audio/wav": "wav",
+          "audio/x-wav": "wav",
+          "audio/webm": "webm"
+        }[file.type];
+
+        const path =
+          cloudUser.id + "/audio/" +
+          crypto.randomUUID() + "." + extension;
+
+        const {error} = await cloudClient.storage
+          .from("anime-media")
+          .upload(path, file, {
+            contentType: file.type,
+            upsert: false
+          });
+
+        if (error) throw error;
+
+        // 只改变这首已有歌曲的媒体路径
+        const previous = s.media?.audioPath;
+        s.media = s.media || {};
+        s.media.audioPath = path;
+
+        try {
+          await saveSongChange();
+        } catch (error) {
+          if (previous) {
+            s.media.audioPath = previous;
+          } else {
+            delete s.media.audioPath;
+          }
+          save();
+          throw error;
+        }
+
+        state.textContent =
+          "✓ 音频已关联并提交云端";
+
+        renderSongs();
+
+      } catch (error) {
+        state.textContent =
+          "上传或保存失败：" + error.message;
+      } finally {
+        fileInput.value = "";
+      }
+    });
+
+    // 编辑歌曲外部链接
+    addButton(controls, "↗ 外链", async () => {
+      const existing = s.externalUrl || "";
+
+      const input = prompt(
+        "歌曲《" + s.title + "》的外部链接\n" +
+        "输入 https:// 地址。\n" +
+        "留空可清除链接。",
+        existing
+      );
+
+      if (input === null) return;
+
+      requireCloud();
+
+      let value = input.trim();
+
+      if (value) {
+        const parsed = new URL(value);
+
+        if (parsed.protocol !== "https:") {
+          throw Error("只允许 https:// 链接");
+        }
+
+        value = parsed.href;
+      }
+
+      const old = s.externalUrl;
+      s.externalUrl = value;
+
+      try {
+        await saveSongChange();
+        state.textContent = "✓ 外链已保存";
+      } catch (error) {
+        s.externalUrl = old;
+        save();
+        throw error;
+      }
+    });
+
+    // 已有链接可直接打开
+    if (s.externalUrl) {
+      addButton(controls, "打开链接 ↗", () => {
+        const url = new URL(s.externalUrl);
+
+        if (url.protocol !== "https:") {
+          throw Error("链接格式不安全");
+        }
+
+        window.open(
+          url.href,
+          "_blank",
+          "noopener,noreferrer"
+        );
+      });
+    }
+
+    controls.appendChild(fileInput);
+
+    wrapper.append(
+      controls,
+      playerArea,
+      state
+    );
+
+    list.appendChild(wrapper);
+  });
+
+  // 保留原来的爱心绑定逻辑
+  bindHearts(list, renderSongs);
 }
+
 
 function bindHearts(parent,callback){
 parent.querySelectorAll(".heart").forEach(btn=>{
