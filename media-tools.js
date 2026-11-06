@@ -463,6 +463,7 @@ async function updateView() {
       await saveData();
 
       info("✓ 文件已上传并保存到云端");
+     renderLinkedSongs();
       await playSaved(obj, type);
 
     } catch(e) {
@@ -677,6 +678,178 @@ async function updateView() {
 
   $("mediaType").dispatchEvent(new Event("change"));
   refreshAnime();
+
+/*
+  歌曲与上传音频联动区
+  直接使用现有 a.songs，不创建重复歌曲
+*/
+const linkedArea = document.createElement("details");
+linkedArea.id = "atlasLinkedSongs";
+linkedArea.style.marginTop = "16px";
+
+const linkedTitle = document.createElement("summary");
+linkedTitle.textContent = "🎵 音乐关联与播放";
+linkedTitle.style.cursor = "pointer";
+linkedTitle.style.padding = "12px 4px";
+linkedTitle.style.fontWeight = "600";
+
+const linkedList = document.createElement("div");
+linkedList.id = "atlasLinkedSongList";
+
+linkedArea.append(linkedTitle, linkedList);
+box.appendChild(linkedArea);
+
+function selectLinkedSong(index) {
+  // 切换到这首歌的真实数据对象
+  $("mediaKind").value = "song";
+  refreshItems();
+
+  $("mediaItem").value = String(index);
+  updateView();
+
+  $("mediaType").value = "audio";
+  $("mediaType").dispatchEvent(
+    new Event("change")
+  );
+}
+
+function renderLinkedSongs() {
+  const a = currentAnime();
+  linkedList.replaceChildren();
+
+  if (!a?.songs?.length) {
+    linkedList.textContent =
+      "当前动漫没有歌曲记录，请先补充OP/ED。";
+    return;
+  }
+
+  const count = a.songs.filter(s =>
+    !!s.media?.audioPath
+  ).length;
+
+  const summary = document.createElement("p");
+  summary.className = "muted";
+  summary.textContent =
+    `共 ${a.songs.length} 首歌曲，` +
+    `已关联音频 ${count} 首`;
+
+  linkedList.appendChild(summary);
+
+  a.songs.forEach((song, index) => {
+    const row = document.createElement("div");
+    row.style.padding = "10px 0";
+    row.style.borderBottom = "1px solid #8885";
+
+    const name = document.createElement("strong");
+    name.textContent =
+      song.title || "未命名歌曲";
+
+    const detail = document.createElement("p");
+    detail.className = "muted";
+    detail.textContent =
+      (song.artist || "歌手待核实") +
+      " · " + (song.type || "音乐") +
+      (song.media?.audioPath
+        ? " · ✓ 已关联音频"
+        : " · 尚未关联音频");
+
+    const controls = document.createElement("div");
+    controls.className = "controls";
+
+    const upload = document.createElement("button");
+    upload.type = "button";
+    upload.className = "secondary";
+    upload.textContent = song.media?.audioPath
+      ? "更换音频"
+      : "关联音频";
+
+    upload.onclick = () => {
+      selectLinkedSong(index);
+      $("mediaFile").click();
+
+      info(
+        "已选中《" + song.title +
+        "》。选择音频文件后，" +
+        "点击上方「☁ 上传文件并同步」。"
+      );
+    };
+
+    controls.appendChild(upload);
+
+    if (song.media?.audioPath) {
+      const play = document.createElement("button");
+      play.type = "button";
+      play.className = "secondary";
+      play.textContent = "▶ 播放";
+
+      play.onclick = async () => {
+        try {
+          if (!loginReady()) {
+            throw Error("请先登录云端");
+          }
+
+          await playSaved(song, "audio");
+
+          $("mediaPlayer").scrollIntoView({
+            behavior: "smooth",
+            block: "center"
+          });
+
+        } catch(e) {
+          info("无法播放：" + e.message);
+        }
+      };
+
+      controls.appendChild(play);
+    }
+
+    const link = document.createElement("button");
+    link.type = "button";
+    link.className = "secondary";
+    link.textContent = song.externalUrl
+      ? "↗ 打开外链"
+      : "＋ 添加外链";
+
+    link.onclick = () => {
+      selectLinkedSong(index);
+
+      if (song.externalUrl) {
+        try {
+          window.open(
+            safeLink(song.externalUrl),
+            "_blank",
+            "noopener,noreferrer"
+          );
+        } catch(e) {
+          info("链接无效：" + e.message);
+        }
+      } else {
+        $("mediaLink").focus();
+        info(
+          "请在上方输入这首歌的外链，" +
+          "然后点击「保存外链」。"
+        );
+      }
+    };
+
+    controls.appendChild(link);
+
+    row.append(name, detail, controls);
+    linkedList.appendChild(row);
+  });
+}
+
+// 切换动漫时更新歌曲列表
+$("mediaAnime").addEventListener(
+  "change", renderLinkedSongs
+);
+
+// 刷新后更新歌曲列表
+$("mediaRefresh").addEventListener(
+  "click", renderLinkedSongs
+);
+
+renderLinkedSongs();
 
   console.log("ANIME ATLAS Media Tools v1 loaded");
 })();
