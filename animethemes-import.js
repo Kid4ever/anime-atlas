@@ -48,7 +48,7 @@
     <p id="atStatus" class="muted"></p>
   `;
 
-  panel.appendChild(wrap);
+panel.after(wrap);
 
   const $ = id => document.getElementById(id);
   const target = $("atTarget");
