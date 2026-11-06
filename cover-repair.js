@@ -245,44 +245,93 @@ async function loadDetail(id) {
   }
 
   
+
 async function verify(id) {
-  msg("第一步：正在读取作品详情，ID " + id);
+  msg("① 正在核实作品详情...");
 
   const detail = await loadDetail(id);
 
-  msg(
-    "第二步：已获取《" +
-    (detail.name_cn || detail.name) +
-    "》，正在检查封面地址..."
-  );
+  const original = imageSource(detail);
 
-  const url = imageSource(detail);
-
-  if (!url) {
+  if (!original) {
     throw new Error(
-      "作品详情读取成功，但没有可用的封面地址。" +
-      "Bangumi ID：" + id
+      "Bangumi作品详情正常，但没有真实封面"
     );
   }
 
   msg(
-    "第三步：正在加载图片CDN..." +
-    "\n作品：" +
-    (detail.name_cn || detail.name)
+    "② 已找到《" +
+    (detail.name_cn || detail.name) +
+    "》，正在通过Supabase读取封面..."
+  );
+
+  const url =
+    CLOUD_URL.replace(/\/+$/, "") +
+    "/functions/v1/bangumi-cover?id=" +
+    encodeURIComponent(String(id));
+
+  const controller = new AbortController();
+  const timer = setTimeout(
+    () => controller.abort(),
+    24000
   );
 
   try {
-    await testImage(url);
-  } catch (e) {
-    throw new Error(
-      "作品详情正常，但图片CDN加载失败：" +
-      e.message +
-      "。可以检查图片域名是否可访问，" +
-      "或改用私人封面上传。"
-    );
-  }
+    const response = await fetch(url, {
+      signal: controller.signal
+    });
 
-  return {detail, url};
+    if (!response.ok) {
+      let reason = "HTTP " + response.status;
+
+      try {
+        const data = await response.json();
+        reason = [
+          data.error,
+          data.detail
+        ].filter(Boolean).join("：");
+      } catch (_) {}
+
+      throw new Error(reason);
+    }
+
+    const type = response.headers.get(
+      "content-type"
+    ) || "";
+
+    if (!type.startsWith("image/")) {
+      throw new Error(
+        "中转返回的内容不是图片"
+      );
+    }
+
+    // 验证返回的数据确实能够解码为图片
+    const blob = await response.blob();
+    const local = URL.createObjectURL(blob);
+
+    try {
+      await testImage(local);
+    } finally {
+      URL.revokeObjectURL(local);
+    }
+
+    msg("③ 封面核实完成，等待确认保存");
+
+    // 保存中转地址，而不是不可访问的CDN地址
+    return {detail, url};
+
+  } catch (e) {
+    if (e.name === "AbortError") {
+      throw new Error(
+        "图片中转超过24秒，已停止查询"
+      );
+    }
+    throw new Error(
+      "图片中转核实失败：" + e.message
+    );
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 
