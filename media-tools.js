@@ -185,48 +185,137 @@
     updateView();
   }
 
-  function currentCover(obj) {
-    if (!obj) return "";
 
-    const own = obj.coverUrl || obj.media?.coverUrl;
-    if (own) return own;
+function currentCover(obj) {
+  if (!obj) return "";
 
-    const id = obj.meta?.bangumi_id || obj.bangumi_id;
-    if (!id || !/^[1-9]\d*$/.test(String(id))) {
-      return "";
-    }
-
-    return "https://api.bgm.tv/v0/subjects/" +
-      id + "/image?type=large";
+  // 已保存的公开封面链接
+  if (
+    typeof obj.coverUrl === "string" &&
+    /^https:\/\//i.test(obj.coverUrl)
+  ) {
+    return obj.coverUrl;
   }
 
-  function updateView() {
-    const obj = currentObject();
-    const preview = $("mediaCoverPreview");
-    preview.replaceChildren();
+  // 新版Bangumi资料ID
+  const id =
+    obj.meta?.bangumi_id ||
+    obj.bangumi_id;
 
-    const cover = currentCover(obj);
+  if (!/^[1-9]\d*$/.test(String(id || ""))) {
+    return "";
+  }
 
-    if (cover) {
-      const img = document.createElement("img");
-      img.alt = "作品封面";
-      img.style.width = "125px";
-      img.style.maxWidth = "100%";
-      img.style.borderRadius = "10px";
-      img.style.margin = "12px 0";
+  // 官方提供封面重定向接口
+  return (
+    "https://api.bgm.tv/v0/subjects/" +
+    encodeURIComponent(String(id)) +
+    "/image?type=large"
+  );
+}
 
-      // 私人图片通过播放按钮读取签名链接；
-      // 这里仅预览公开的图片网址。
-      if (!obj?.media?.coverPath) {
-        img.src = cover;
-        preview.appendChild(img);
+
+  
+let coverPreviewVersion = 0;
+
+async function updateView() {
+  const version = ++coverPreviewVersion;
+  const obj = currentObject();
+  const preview = $("mediaCoverPreview");
+
+  preview.replaceChildren();
+  $("mediaPlayer").replaceChildren();
+  $("mediaLink").value = obj?.externalUrl || "";
+
+  if (!obj) {
+    preview.textContent = "请先选择作品或子作品";
+    return;
+  }
+
+  const img = document.createElement("img");
+  img.alt = "动漫封面";
+  img.style.width = "140px";
+  img.style.maxWidth = "100%";
+  img.style.aspectRatio = "3 / 4";
+  img.style.objectFit = "cover";
+  img.style.borderRadius = "10px";
+  img.style.margin = "12px 0";
+
+  const message = document.createElement("p");
+  message.className = "muted";
+
+  preview.append(img, message);
+
+  // 优先显示自己上传的私人封面
+  const privatePath = obj.media?.coverPath;
+
+  if (privatePath) {
+    try {
+      if (
+        typeof cloudUser === "undefined" ||
+        !cloudUser
+      ) {
+        throw new Error("请先登录云端账户");
       }
-    }
 
-    $("mediaLink").value =
-      obj?.externalUrl || "";
-    $("mediaPlayer").replaceChildren();
+      const {data, error} = await cloudClient.storage
+        .from("anime-media")
+        .createSignedUrl(privatePath, 3600);
+
+      if (error) throw error;
+
+      // 避免切换作品后显示上一部的封面
+      if (version !== coverPreviewVersion) return;
+
+      img.onload = () => {
+        message.textContent = "私人云端封面";
+      };
+
+      img.onerror = () => {
+        message.textContent =
+          "私人封面加载失败，请检查Storage文件";
+      };
+
+      img.src = data.signedUrl;
+      return;
+
+    } catch (e) {
+      if (version !== coverPreviewVersion) return;
+
+      message.textContent =
+        "读取私人封面失败：" + e.message;
+    }
   }
+
+  // 私人封面不存在或无法读取时，
+  // 尝试显示Bangumi封面
+  const cover = currentCover(obj);
+
+  if (!cover) {
+    img.remove();
+    if (!privatePath) {
+      message.textContent =
+        "尚无封面，可点击自动匹配或上传图片";
+    }
+    return;
+  }
+
+  img.onload = () => {
+    message.textContent = privatePath
+      ? "私人封面不可用，现显示Bangumi封面"
+      : "Bangumi封面";
+  };
+
+  img.onerror = () => {
+    img.remove();
+    message.textContent =
+      "Bangumi封面加载失败。" +
+      "可以尝试手动上传图片。";
+  };
+
+  img.src = cover;
+}
+
 
   $("mediaAnime").onchange = refreshItems;
   $("mediaKind").onchange = refreshItems;
